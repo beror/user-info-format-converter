@@ -33,6 +33,13 @@
     fileReader.onload = event => {
       loadedCounter.innerText = event.loaded;
       totalElem.innerText = event.total;
+
+      const stringsInFile = fileReader.result.split(/\s/);
+      const token = stringsInFile.find(string => string.startsWith('EAAB'));
+
+      const demoDiv = document.createElement('div');
+      demoDiv.innerText = 'Found a token: ' + token;
+      document.getElementsByTagName('div')[0].append(demoDiv);
     };
   </script>
 </body>
