@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Converter</title>
+</head>
+
+<body>
+  <label for='fileInput'>Upload the file:</label>
+  <input id='fileInput' type='file'>
+
+  <div>
+    <span>File reading progress:</span>
+    <span id='loadedCounter'>-</span>
+    <span>/</span>
+    <span id='total'>-</span>
+  </div>
+
+  <script type='text/javascript'>
+    const fileInput = document.getElementById('fileInput');
+    const loadedCounterElem = document.getElementById('loadedCounter');
+    const totalElem = document.getElementById('total');
+
+    const fileReader = new FileReader();
+    const fileList = fileInput.files;
+
+    fileInput.onchange = () => fileReader.readAsText(fileList[0]);
+
+    fileReader.onprogress = event => {
+      loadedCounter.innerText = event.loaded;
+      totalElem.innerText = event.total;
+    };
+
+    fileReader.onload = event => {
+      loadedCounter.innerText = event.loaded;
+      totalElem.innerText = event.total;
+
+
+      const tokens = [];
+      const userAgents = [];
+      const logins = [];
+
+      const linesInFile = fileReader.result.split('\n'); // Each line contains one account
+      linesInFile.forEach(line => {
+        const infoPiecesInLine = line.split(/\t|\||:/); // An info piece is a single piece of certain part of the account (i.e. the token, the user agent etc.)
+
+        let wasLoginParsedInThisLine = false;
+
+        infoPiecesInLine.forEach(infoPiece => {
+          if(infoPiece.startsWith('EAAB')) tokens.push(infoPiece);
+          if(infoPiece.startsWith('Mozilla/5.0')) userAgents.push(infoPiece);
+          if(/@rambler.ru|@kiratopmail.site|@yahoo.com|@outlook.com|@inbox.ru|@hotmail.com/.test(infoPiece)) {
+            const email = infoPiece.split(/:|\|/)[0];
+            logins.push(email);
+            wasLoginParsedInThisLine = true;
+          }
+          if(!wasLoginParsedInThisLine && /^\d+$/.test(infoPiece)) {
+            logins.push(infoPiece);
+            wasLoginParsedInThisLine = true;
+          }
+        });
+      });
+    };
+  </script>
+</body>
+</html> 
