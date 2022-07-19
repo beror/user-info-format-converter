@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Converter</title>
+</head>
+
+<body>
+  <label for='fileInput'>Upload the file:</label>
+  <input id='fileInput' type='file'>
+
+  <div>
+    <span>File reading progress:</span>
+    <span id='loadedCounter'>-</span>
+    <span>/</span>
+    <span id='total'>-</span>
+  </div>
+
+  <script type='text/javascript'>
+    const fileInput = document.getElementById('fileInput');
+    const loadedCounterElem = document.getElementById('loadedCounter');
+    const totalElem = document.getElementById('total');
+
+    const fileReader = new FileReader();
+    const fileList = fileInput.files;
+
+    fileInput.onchange = () => fileReader.readAsText(fileList[0]);
+
+    fileReader.onprogress = event => {
+      loadedCounter.innerText = event.loaded;
+      totalElem.innerText = event.total;
+    };
+
+    fileReader.onload = event => {
+      loadedCounter.innerText = event.loaded;
+      totalElem.innerText = event.total;
+    };
+  </script>
+</body>
+</html> 
