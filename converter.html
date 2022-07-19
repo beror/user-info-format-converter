@@ -92,7 +92,7 @@
 
         Object.values(infoPiecesArrays).forEach(infoPiecesArray => {
           const newCell = document.createElement('td');
-          newCell.innerText = infoPiecesArray[i].length > 40 ? infoPiecesArray[i].substring(0, 40) + '...' : infoPiecesArray[i];
+          newCell.innerText = infoPiecesArray[i]?.length > 40 ? infoPiecesArray[i].substring(0, 40) + '...' : infoPiecesArray[i];
           newRow.appendChild(newCell);
         });
 
