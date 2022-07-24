@@ -64,42 +64,49 @@
     };
 
     const renderResultPreview = (infoPiecesArrays) => {
-      const headers = Object.keys(infoPiecesArrays);
-
-      const table = document.createElement('table');
-      table.id = 'resultTable';
-      table.style.width = '100%';
-      table.style.border = '1px solid blue';
-
-      const tableCaption = document.createElement('caption');
-      tableCaption.innerText = 'Result preview';
-      tableCaption.style.fontSize = '22px';
-      tableCaption.style.fontWeight = 'bold';
-      table.appendChild(tableCaption);
-
-      const headerRow = document.createElement('tr');
-      headers.forEach(header => {
-        const headerElement = document.createElement('th');
-        headerElement.innerText = header;
-        headerRow.appendChild(headerElement);
-      });
-      table.appendChild(headerRow);
-
-      const longestInfoPiecesArrayLength = Math.max(...Object.values(infoPiecesArrays).map(a => a.length));
-
-      for(let i = 0; i < longestInfoPiecesArrayLength; i++) {
-        const newRow = document.createElement('tr');
-
-        Object.values(infoPiecesArrays).forEach(infoPiecesArray => {
-          const newCell = document.createElement('td');
-          newCell.innerText = infoPiecesArray[i]?.length > 40 ? infoPiecesArray[i].substring(0, 40) + '...' : infoPiecesArray[i];
-          newRow.appendChild(newCell);
+      try {
+        const headers = Object.keys(infoPiecesArrays);
+  
+        const table = document.createElement('table');
+        table.id = 'resultTable';
+        table.style.width = '100%';
+        table.style.border = '1px solid blue';
+  
+        const tableCaption = document.createElement('caption');
+        tableCaption.innerText = 'Result preview';
+        tableCaption.style.fontSize = '22px';
+        tableCaption.style.fontWeight = 'bold';
+        table.appendChild(tableCaption);
+  
+        const headerRow = document.createElement('tr');
+        headers.forEach(header => {
+          const headerElement = document.createElement('th');
+          headerElement.innerText = header;
+          headerRow.appendChild(headerElement);
         });
-
-        table.appendChild(newRow);
+        table.appendChild(headerRow);
+  
+        const longestInfoPiecesArrayLength = Math.max(...Object.values(infoPiecesArrays).map(a => a.length));
+  
+        for(let i = 0; i < longestInfoPiecesArrayLength; i++) {
+          const newRow = document.createElement('tr');
+  
+          Object.values(infoPiecesArrays).forEach(infoPiecesArray => {
+            const newCell = document.createElement('td');
+            newCell.innerText = infoPiecesArray[i]?.length > 40 ? infoPiecesArray[i].substring(0, 40) + '...' : infoPiecesArray[i] || '';
+            newRow.appendChild(newCell);
+          });
+  
+          table.appendChild(newRow);
+        }
+  
+        document.getElementsByTagName('div')[0].append(table);
+      } catch (error) {
+        const errorDiv = document.createElement('div');
+        errorDiv.innerText = 'An error has occured: ' + error;
+        errorDiv.style.border = '1px solid red';
+        document.getElementsByTagName('div')[0].append(errorDiv);
       }
-
-      document.getElementsByTagName('div')[0].append(table);
     };
   </script>
 </body>
