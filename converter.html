@@ -34,33 +34,58 @@
       loadedCounter.innerText = event.loaded;
       totalElem.innerText = event.total;
 
+      const linesInFile = fileReader.result.split(/\r\n|\n/); // Each line contains one account
 
+      const logins = [];
+      const passwords = [];
       const tokens = [];
       const userAgents = [];
-      const logins = [];
+      const cookies = [];
 
-      const linesInFile = fileReader.result.split('\n'); // Each line contains one account
       linesInFile.forEach(line => {
         const infoPiecesInLine = line.split(/\t|\||:/); // An info piece is a single piece of certain part of the account (i.e. the token, the user agent etc.)
 
         let wasLoginParsedInThisLine = false;
 
+        let wasLoginThePreviousInfoPiece = false; // Needed for password parsing. Password is assumed to come immediately after the login
+
+        let isCollectingACookie = false;
+        let collectedCookie = '';
+
         infoPiecesInLine.forEach(infoPiece => {
-          if(infoPiece.startsWith('EAAB')) tokens.push(infoPiece);
-          if(infoPiece.startsWith('Mozilla/5.0')) userAgents.push(infoPiece);
-          if(/@rambler.ru|@kiratopmail.site|@yahoo.com|@outlook.com|@inbox.ru|@hotmail.com/.test(infoPiece)) {
+          if(isCollectingACookie) {
+            collectedCookie += ':' + infoPiece; // Adding ":" back in because it was a separator
+            if(infoPiece.endsWith('}]')) {
+              isCollectingACookie = false;
+            }
+          }
+          else if(wasLoginThePreviousInfoPiece) {
+            passwords.push(infoPiece);
+            wasLoginThePreviousInfoPiece = false;
+          }
+          else if(infoPiece.startsWith('EAAB')) tokens.push(infoPiece);
+          else if(infoPiece.startsWith('Mozilla/5.0')) userAgents.push(infoPiece);
+          else if(/@rambler.ru|@kiratopmail.site|@yahoo.com|@outlook.com|@inbox.ru|@hotmail.com/.test(infoPiece)) {
             const email = infoPiece.split(/:|\|/)[0];
             logins.push(email);
             wasLoginParsedInThisLine = true;
+            wasLoginThePreviousInfoPiece = true;
           }
-          if(!wasLoginParsedInThisLine && /^\d+$/.test(infoPiece)) {
+          else if(!wasLoginParsedInThisLine && /^\d+$/.test(infoPiece)) {
             logins.push(infoPiece);
             wasLoginParsedInThisLine = true;
+            wasLoginThePreviousInfoPiece = true;
+          }
+          else if(/^(\[{"name"|\[{"domain"|\[{"expirationDate")/.test(infoPiece)) {
+            collectedCookie += infoPiece;
+            isCollectingACookie = true;
           }
         });
+        
+        cookies.push(collectedCookie);
       });
 
-      renderResultPreview({tokens, userAgents, logins});
+      renderResultPreview({logins, passwords, tokens, userAgents, cookies});
     };
 
     const renderResultPreview = (infoPiecesArrays) => {
@@ -69,7 +94,7 @@
   
         const table = document.createElement('table');
         table.id = 'resultTable';
-        table.style.width = '100%';
+        table.style.minWidth = '100%';
         table.style.border = '1px solid blue';
   
         const tableCaption = document.createElement('caption');
@@ -93,7 +118,7 @@
   
           Object.values(infoPiecesArrays).forEach(infoPiecesArray => {
             const newCell = document.createElement('td');
-            newCell.innerText = infoPiecesArray[i]?.length > 40 ? infoPiecesArray[i].substring(0, 40) + '...' : infoPiecesArray[i] || '';
+            newCell.innerText = infoPiecesArray[i]?.length > 70 ? infoPiecesArray[i].substring(0, 60) + '...' + infoPiecesArray[i].slice(-8) : infoPiecesArray[i] || '';
             newRow.appendChild(newCell);
           });
   
