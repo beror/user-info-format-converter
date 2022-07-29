@@ -4,9 +4,21 @@
   <title>Converter</title>
 </head>
 
-<body>
+<body style='background-color: #222; color: #eee;'>
   <label for='fileInput'>Upload the file:</label>
   <input id='fileInput' type='file'>
+
+  <div>
+    <label for='customNameInput'>Name:</label>
+    <input id='customNameInput' type='text'>
+  </div>
+
+  <div>
+    <label for='outputFormatSelect'>Output format:</label>
+    <select id='outputFormatSelect'>
+      <option value='name::token::userAgent'>Название :: access_token :: User agent</option>
+    </select>
+  </div>
 
   <div>
     <span>File reading progress:</span>
@@ -21,9 +33,8 @@
     const totalElem = document.getElementById('total');
 
     const fileReader = new FileReader();
-    const fileList = fileInput.files;
 
-    fileInput.onchange = () => fileReader.readAsText(fileList[0]);
+    fileInput.onchange = ({target: {files}}) => fileReader.readAsText(files[0]);
 
     fileReader.onprogress = event => {
       loadedCounter.innerText = event.loaded;
@@ -36,11 +47,13 @@
 
       const linesInFile = fileReader.result.split(/\r\n|\n/); // Each line contains one account
 
-      const logins = [];
-      const passwords = [];
-      const tokens = [];
-      const userAgents = [];
-      const cookies = [];
+      const infoPiecesArraysMap = {
+        logins: [],
+        passwords: [],
+        tokens: [],
+        userAgents: [],
+        cookies: []
+      };
 
       linesInFile.forEach(line => {
         const infoPiecesInLine = line.split(/\t|\||:/); // An info piece is a single piece of certain part of the account (i.e. the token, the user agent etc.)
@@ -60,19 +73,19 @@
             }
           }
           else if(wasLoginThePreviousInfoPiece) {
-            passwords.push(infoPiece);
+            infoPiecesArraysMap.passwords.push(infoPiece);
             wasLoginThePreviousInfoPiece = false;
           }
-          else if(infoPiece.startsWith('EAAB')) tokens.push(infoPiece);
-          else if(infoPiece.startsWith('Mozilla/5.0')) userAgents.push(infoPiece);
+          else if(infoPiece.startsWith('EAAB')) infoPiecesArraysMap.tokens.push(infoPiece);
+          else if(infoPiece.startsWith('Mozilla/5.0')) infoPiecesArraysMap.userAgents.push(infoPiece);
           else if(/@rambler.ru|@kiratopmail.site|@yahoo.com|@outlook.com|@inbox.ru|@hotmail.com/.test(infoPiece)) {
             const email = infoPiece.split(/:|\|/)[0];
-            logins.push(email);
+            infoPiecesArraysMap.logins.push(email);
             wasLoginParsedInThisLine = true;
             wasLoginThePreviousInfoPiece = true;
           }
           else if(!wasLoginParsedInThisLine && /^\d+$/.test(infoPiece)) {
-            logins.push(infoPiece);
+            infoPiecesArraysMap.logins.push(infoPiece);
             wasLoginParsedInThisLine = true;
             wasLoginThePreviousInfoPiece = true;
           }
@@ -81,56 +94,132 @@
             isCollectingACookie = true;
           }
         });
-        
-        cookies.push(collectedCookie);
+
+        infoPiecesArraysMap.cookies.push(collectedCookie);
       });
 
-      renderResultPreview({logins, passwords, tokens, userAgents, cookies});
+      renderAndClickDownloadFileButton(
+        getFormattedOutputObjectUrl(infoPiecesArraysMap)
+      );
+
+      renderResultPreview(infoPiecesArraysMap);
+    };
+
+    const getFormattedOutputObjectUrl = ({logins, passwords, tokens, userAgents, cookies}) => { // TODO: prevent objectURL creating a memory leak
+      const outputFormat = document.getElementById('outputFormatSelect').value;
+      let objectURL;
+
+      switch(outputFormat) {
+        case 'name::token::userAgent': {
+          const arraysToOutput = [tokens, userAgents];
+          const longestArrayLength = Math.max(
+            ...arraysToOutput.map(a => a.length)
+          );
+          objectURL = URL.createObjectURL(
+            getBlobifiedFormattedInfoPiecesArrays(
+              [getCustomNames(longestArrayLength), tokens, userAgents]
+            )
+          );
+          break;
+        }
+      }
+
+      return objectURL;
+    };
+
+    const getOutputString = (infoPiecesArrays) => {
+      let outputString = '';
+      const longestInfoPiecesArrayLength = Math.max(...infoPiecesArrays.map(a => a.length));
+
+      for(let i = 0; i < longestInfoPiecesArrayLength; i++) {
+        infoPiecesArrays.forEach((infoPieces, idx) => {
+          const infoPiece = infoPieces[i] || '';
+          outputString += idx === 0 ? infoPiece : ' :: ' + infoPiece;
+        });
+        outputString += '\n';
+      }
+
+      return outputString;
+    };
+
+    const getCustomNames = (length) => {
+      const customName = document.getElementById('customNameInput').value;
+
+      return new Array(length)
+        .fill(undefined)
+        .map((_, i) => `${customName}-${i+1}`);
+    };
+
+    const getBlobifiedFormattedInfoPiecesArrays = (infoPiecesArrays) => new Blob(
+      [getOutputString(infoPiecesArrays)],
+      {type: 'text/plain'}
+    );
+
+    const renderAndClickDownloadFileButton = (objectURLToDownload) => {
+      const downloadButton = document.createElement('button');
+      downloadButton.innerText = 'Download the output file';
+
+      const a = document.createElement('a');
+      a.href = objectURLToDownload;
+      a.download = 'test.txt';
+      a.style.display = 'block';
+
+      a.click();
+
+      a.appendChild(downloadButton);
+      document.body.lastElementChild.previousElementSibling.append(a);
     };
 
     const renderResultPreview = (infoPiecesArrays) => {
       try {
         const headers = Object.keys(infoPiecesArrays);
-  
+
         const table = document.createElement('table');
         table.id = 'resultTable';
         table.style.minWidth = '100%';
-        table.style.border = '1px solid blue';
-  
+        table.style.border = '1px solid #666';
+        table.style.borderCollapse = 'collapse';
+
         const tableCaption = document.createElement('caption');
         tableCaption.innerText = 'Result preview';
         tableCaption.style.fontSize = '22px';
         tableCaption.style.fontWeight = 'bold';
         table.appendChild(tableCaption);
-  
+
         const headerRow = document.createElement('tr');
         headers.forEach(header => {
-          const headerElement = document.createElement('th');
-          headerElement.innerText = header;
-          headerRow.appendChild(headerElement);
+          const headerCell = document.createElement('th');
+          headerCell.innerText = header;
+          headerCell.style.borderRight = '1px solid #666';
+          headerRow.appendChild(headerCell);
         });
         table.appendChild(headerRow);
-  
+
         const longestInfoPiecesArrayLength = Math.max(...Object.values(infoPiecesArrays).map(a => a.length));
-  
+
         for(let i = 0; i < longestInfoPiecesArrayLength; i++) {
           const newRow = document.createElement('tr');
-  
-          Object.values(infoPiecesArrays).forEach(infoPiecesArray => {
+
+          Object.values(infoPiecesArrays).forEach(infoPieces => {
+            const infoPiece = infoPieces[i];
+
             const newCell = document.createElement('td');
-            newCell.innerText = infoPiecesArray[i]?.length > 70 ? infoPiecesArray[i].substring(0, 60) + '...' + infoPiecesArray[i].slice(-8) : infoPiecesArray[i] || '';
+            newCell.innerText = infoPiece?.length > 70 ? infoPiece.substring(0, 60) + '...' + infoPiece.slice(-8) : infoPiece || '';
+            newCell.style.borderRight = '1px solid #666';
+            newCell.style.padding = '10px';
+
             newRow.appendChild(newCell);
           });
-  
+
           table.appendChild(newRow);
         }
-  
-        document.getElementsByTagName('div')[0].append(table);
+
+        document.body.lastElementChild.previousElementSibling.append(table);
       } catch (error) {
         const errorDiv = document.createElement('div');
         errorDiv.innerText = 'An error has occured: ' + error;
         errorDiv.style.border = '1px solid red';
-        document.getElementsByTagName('div')[0].append(errorDiv);
+        document.body.lastElementChild.previousElementSibling.append(errorDiv);
       }
     };
   </script>
