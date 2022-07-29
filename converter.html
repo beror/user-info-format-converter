@@ -145,9 +145,9 @@
     const getCustomNames = (length) => {
       const customName = document.getElementById('customNameInput').value;
 
-      return new Array(length)
-        .fill(undefined)
-        .map((_, i) => `${customName}-${i+1}`);
+      return customName && new Array(length)
+                            .fill(undefined)
+                            .map((_, i) => `${customName}-${i+1}`);
     };
 
     const getBlobifiedFormattedInfoPiecesArrays = (infoPiecesArrays) => new Blob(
