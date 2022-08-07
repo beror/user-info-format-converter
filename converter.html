@@ -6,7 +6,7 @@
 
 <body style='background-color: #222; color: #eee;'>
   <label for='fileInput'>Upload the file:</label>
-  <input id='fileInput' type='file'>
+  <input id='fileInput' type='file' style='cursor: pointer;'>
 
   <div>
     <label for='customNameInput'>Name:</label>
@@ -46,6 +46,7 @@
       totalElem.innerText = event.total;
 
       const linesInFile = fileReader.result.split(/\r\n|\n/); // Each line contains one account
+      if(linesInFile[linesInFile.length - 1] === '') linesInFile.splice(linesInFile.length - 1);
 
       const infoPiecesArraysMap = {
         logins: [],
@@ -98,33 +99,80 @@
         infoPiecesArraysMap.cookies.push(collectedCookie);
       });
 
-      renderAndClickDownloadFileButton(
+      const longestArrayLength = Math.max(
+        ...Object.values(infoPiecesArraysMap).map(a => a.length)
+      );
+
+      // TODO: fix abstraction failure that starts here
+
+      const outputFormat = document.getElementById('outputFormatSelect').value;
+
+      let infoPiecesToOutput;
+      switch(outputFormat) {
+        case 'name::token::userAgent': {
+          infoPiecesToOutput = [
+            infoPiecesArraysMap.tokens,
+            infoPiecesArraysMap.userAgents
+          ];
+          break;
+        }
+        default: {
+          infoPiecesToOutput = Object.values(infoPiecesArraysMap);
+          break;
+        }
+      }
+
+      renderDownloadFileButton(
         getFormattedOutputObjectUrl(infoPiecesArraysMap)
       );
 
+      renderCopyToClipboardButton(
+        getOutputString([
+          getCustomNames(longestArrayLength),
+          ...infoPiecesToOutput
+        ])
+      );
+
       renderResultPreview(infoPiecesArraysMap);
+
+      // and ends here
     };
 
-    const getFormattedOutputObjectUrl = ({logins, passwords, tokens, userAgents, cookies}) => { // TODO: prevent objectURL creating a memory leak
+    const getFormattedOutputObjectUrl = (infoPiecesArraysMap) => { // TODO: prevent objectURL creating a memory leak. Also this function is not pure
       const outputFormat = document.getElementById('outputFormatSelect').value;
-      let objectURL;
+      let objectUrl;
 
       switch(outputFormat) {
         case 'name::token::userAgent': {
-          const arraysToOutput = [tokens, userAgents];
-          const longestArrayLength = Math.max(
-            ...arraysToOutput.map(a => a.length)
+          const infoPiecesToOutput = [
+                                      infoPiecesArraysMap.tokens,
+                                      infoPiecesArraysMap.userAgents
+                                     ];
+          const biggestArrayLength = Math.max(
+            ...infoPiecesToOutput.map(a => a.length)
           );
-          objectURL = URL.createObjectURL(
+          objectUrl = URL.createObjectURL(
             getBlobifiedFormattedInfoPiecesArrays(
-              [getCustomNames(longestArrayLength), tokens, userAgents]
+              [getCustomNames(biggestArrayLength), ...infoPiecesToOutput]
+            )
+          );
+          break;
+        }
+        default: {
+          const infoPiecesToOutput = Object.values(infoPiecesArraysMap);
+          const biggestArrayLength = Math.max(
+            ...infoPiecesToOutput.map(a => a.length)
+          );
+          objectUrl = URL.createObjectURL(
+            getBlobifiedFormattedInfoPiecesArrays(
+              [getCustomNames(biggestArrayLength), ...infoPiecesToOutput]
             )
           );
           break;
         }
       }
 
-      return objectURL;
+      return objectUrl;
     };
 
     const getOutputString = (infoPiecesArrays) => {
@@ -155,19 +203,28 @@
       {type: 'text/plain'}
     );
 
-    const renderAndClickDownloadFileButton = (objectURLToDownload) => {
+    const renderDownloadFileButton = (objectUrlToDownload) => {
       const downloadButton = document.createElement('button');
       downloadButton.innerText = 'Download the output file';
+      downloadButton.style.cursor = 'pointer';
 
       const a = document.createElement('a');
-      a.href = objectURLToDownload;
+      a.href = objectUrlToDownload;
       a.download = 'test.txt';
       a.style.display = 'block';
+      a.style.width = 'fit-content';
 
-      a.click();
+      a.append(downloadButton);
+      document.body.lastElementChild.before(a);
+    };
 
-      a.appendChild(downloadButton);
-      document.body.lastElementChild.previousElementSibling.append(a);
+    const renderCopyToClipboardButton = (stringToCopy) => {
+      const copyToClipboardButton = document.createElement('button');
+      copyToClipboardButton.innerText = 'Copy the result to clipboard';
+      copyToClipboardButton.style.cursor = 'pointer';
+      copyToClipboardButton.onclick = () => navigator.clipboard.writeText(stringToCopy);
+
+      document.body.lastElementChild.before(copyToClipboardButton);
     };
 
     const renderResultPreview = (infoPiecesArrays) => {
@@ -184,16 +241,16 @@
         tableCaption.innerText = 'Result preview';
         tableCaption.style.fontSize = '22px';
         tableCaption.style.fontWeight = 'bold';
-        table.appendChild(tableCaption);
+        table.append(tableCaption);
 
         const headerRow = document.createElement('tr');
         headers.forEach(header => {
           const headerCell = document.createElement('th');
           headerCell.innerText = header;
           headerCell.style.borderRight = '1px solid #666';
-          headerRow.appendChild(headerCell);
+          headerRow.append(headerCell);
         });
-        table.appendChild(headerRow);
+        table.append(headerRow);
 
         const longestInfoPiecesArrayLength = Math.max(...Object.values(infoPiecesArrays).map(a => a.length));
 
@@ -208,18 +265,22 @@
             newCell.style.borderRight = '1px solid #666';
             newCell.style.padding = '10px';
 
-            newRow.appendChild(newCell);
+            newRow.append(newCell);
           });
 
-          table.appendChild(newRow);
+          table.append(newRow);
         }
 
-        document.body.lastElementChild.previousElementSibling.append(table);
+        document
+          .body
+          .lastElementChild
+          .previousElementSibling
+          .after(table);
       } catch (error) {
         const errorDiv = document.createElement('div');
         errorDiv.innerText = 'An error has occured: ' + error;
         errorDiv.style.border = '1px solid red';
-        document.body.lastElementChild.previousElementSibling.append(errorDiv);
+        document.body.lastElementChild.before(errorDiv);
       }
     };
   </script>
