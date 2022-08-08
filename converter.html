@@ -117,7 +117,9 @@
 
     const getInfoPiecesToOutput = (infoPiecesArraysMap, infoPiecesToOutputNames) => {
       const infoPiecesToOutput = infoPiecesToOutputNames.reduce((acc, cur) => {
-        if(cur !== 'customNames') acc.push(infoPiecesArraysMap[cur]);
+        if(['customNames', 'proxies'].includes(cur)) return acc;
+
+        acc.push(infoPiecesArraysMap[cur]);
         return acc;
       }, []);
 
