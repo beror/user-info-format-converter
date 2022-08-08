@@ -16,7 +16,8 @@
   <div>
     <label for='outputFormatSelect'>Output format:</label>
     <select id='outputFormatSelect'>
-      <option value='name::token::userAgent'>Название :: access_token :: User agent</option>
+      <!-- Specify the output format by listing the info pieces (as named in the script) in a JSON array -->
+      <option value='["customNames","tokens","userAgents"]'>Название :: access_token :: User agent</option>
     </select>
   </div>
 
@@ -99,88 +100,46 @@
         infoPiecesArraysMap.cookies.push(collectedCookie);
       });
 
-      const longestArrayLength = Math.max(
-        ...Object.values(infoPiecesArraysMap).map(a => a.length)
-      );
-
-      // TODO: fix abstraction failure that starts here
-
-      const outputFormat = document.getElementById('outputFormatSelect').value;
-
-      let infoPiecesToOutput;
-      switch(outputFormat) {
-        case 'name::token::userAgent': {
-          infoPiecesToOutput = [
-            infoPiecesArraysMap.tokens,
-            infoPiecesArraysMap.userAgents
-          ];
-          break;
-        }
-        default: {
-          infoPiecesToOutput = Object.values(infoPiecesArraysMap);
-          break;
-        }
-      }
+      const infoPiecesToOutputNames = JSON.parse(document.getElementById('outputFormatSelect').value);
+      const infoPiecesToOutput = getInfoPiecesToOutput(infoPiecesArraysMap, infoPiecesToOutputNames);
+      const outputString = getOutputString(infoPiecesToOutput);
 
       renderDownloadFileButton(
-        getFormattedOutputObjectUrl(infoPiecesArraysMap)
+        URL.createObjectURL( // TODO: prevent objectURL creating a memory leak
+          new Blob([outputString], {type: 'text/plain'})
+        )
       );
 
-      renderCopyToClipboardButton(
-        getOutputString([
-          getCustomNames(longestArrayLength),
-          ...infoPiecesToOutput
-        ])
-      );
+      renderCopyToClipboardButton(outputString);
 
       renderResultPreview(infoPiecesArraysMap);
-
-      // and ends here
     };
 
-    const getFormattedOutputObjectUrl = (infoPiecesArraysMap) => { // TODO: prevent objectURL creating a memory leak. Also this function is not pure
-      const outputFormat = document.getElementById('outputFormatSelect').value;
-      let objectUrl;
+    const getInfoPiecesToOutput = (infoPiecesArraysMap, infoPiecesToOutputNames) => {
+      const infoPiecesToOutput = infoPiecesToOutputNames.reduce((acc, cur) => {
+        if(cur !== 'customNames') acc.push(infoPiecesArraysMap[cur]);
+        return acc;
+      }, []);
 
-      switch(outputFormat) {
-        case 'name::token::userAgent': {
-          const infoPiecesToOutput = [
-                                      infoPiecesArraysMap.tokens,
-                                      infoPiecesArraysMap.userAgents
-                                     ];
-          const biggestArrayLength = Math.max(
-            ...infoPiecesToOutput.map(a => a.length)
-          );
-          objectUrl = URL.createObjectURL(
-            getBlobifiedFormattedInfoPiecesArrays(
-              [getCustomNames(biggestArrayLength), ...infoPiecesToOutput]
-            )
-          );
-          break;
-        }
-        default: {
-          const infoPiecesToOutput = Object.values(infoPiecesArraysMap);
-          const biggestArrayLength = Math.max(
-            ...infoPiecesToOutput.map(a => a.length)
-          );
-          objectUrl = URL.createObjectURL(
-            getBlobifiedFormattedInfoPiecesArrays(
-              [getCustomNames(biggestArrayLength), ...infoPiecesToOutput]
-            )
-          );
-          break;
-        }
+      const customNamesOrder = infoPiecesToOutputNames.findIndex(el => el === 'customNames');
+
+      if(customNamesOrder !== -1) {
+        const customName = document.getElementById('customNameInput').value;
+        const longestArrayLength = Math.max(
+          ...Object.values(infoPiecesToOutput).map(a => a.length)
+        );
+        infoPiecesToOutput.unshift(getCustomNames(customName, longestArrayLength));
       }
 
-      return objectUrl;
+      return infoPiecesToOutput;
     };
 
-    const getOutputString = (infoPiecesArrays) => {
+    const getOutputString = (arraysToOutput) => {
       let outputString = '';
-      const longestInfoPiecesArrayLength = Math.max(...infoPiecesArrays.map(a => a.length));
+      const longestInfoPiecesArrayLength = Math.max(...arraysToOutput.map(a => a.length));
 
       for(let i = 0; i < longestInfoPiecesArrayLength; i++) {
-        infoPiecesArrays.forEach((infoPieces, idx) => {
+        arraysToOutput.forEach((infoPieces, idx) => {
           const infoPiece = infoPieces[i] || '';
           outputString += idx === 0 ? infoPiece : ' :: ' + infoPiece;
         });
@@ -190,18 +149,11 @@
       return outputString;
     };
 
-    const getCustomNames = (length) => {
-      const customName = document.getElementById('customNameInput').value;
-
-      return customName && new Array(length)
-                            .fill(undefined)
-                            .map((_, i) => `${customName}-${i+1}`);
-    };
-
-    const getBlobifiedFormattedInfoPiecesArrays = (infoPiecesArrays) => new Blob(
-      [getOutputString(infoPiecesArrays)],
-      {type: 'text/plain'}
-    );
+    const getCustomNames = (customName, length) => (
+      new Array(length)
+        .fill(undefined)
+        .map((_, i) => customName && `${customName}-${i+1}`)
+      );
 
     const renderDownloadFileButton = (objectUrlToDownload) => {
       const downloadButton = document.createElement('button');
