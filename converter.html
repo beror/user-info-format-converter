@@ -2,49 +2,86 @@
 <html>
 <head>
   <title>Converter</title>
+
+  <style>
+    button {
+      width: 200px;
+      height: 75px;
+    }
+
+    input, textarea {
+      min-width: 300px;
+      width: fit-content;
+    }
+
+    select {
+      width: fit-content;
+      height: 75px;
+    }
+
+    input::file-selector-button {
+      width: 200px;
+      height: 75px;
+    }
+
+    #formGrid {
+      display: grid;
+      grid-template-rows: 1fr;
+      grid-template-columns: 0fr 0fr;
+      row-gap: 10px;
+      column-gap: 20px;
+
+      margin-bottom: 15px;
+    }
+  </style>
 </head>
 
 <body style='background-color: #222; color: #eee;'>
-  <label for='fileInput'>Upload the file:</label>
-  <input id='fileInput' type='file' style='cursor: pointer;'>
-
-  <div>
-    <label for='customNameInput'>Name:</label>
+  <div id='formGrid'>
+    <label for='customNameInput'>Наименование:</label>
     <input id='customNameInput' type='text'>
-  </div>
 
-  <div>
-    <label for='outputFormatSelect'>Output format:</label>
+    <label for='proxiesTextarea'>Прокси:</label>
+    <textarea id='proxiesTextarea' style='height: 150px;'></textarea>
+
+    <label for='outputFormatSelect'>Выходной формат:</label>
     <select id='outputFormatSelect'>
       <!-- Specify the output format by listing the info pieces (as named in the script) in a JSON array -->
       <option value='["customNames","tokens","userAgents"]'>Название :: access_token :: User agent</option>
+      <option value='["customNames","tokens","userAgents","proxies"]'>Название :: access_token :: User agent :: proxy</option>
+      <option value='["customNames","tokens","proxies","cookies","passwords"]'>Название :: access_token :: proxy :: [{json cookie}] :: account password</option>
     </select>
-  </div>
 
-  <div>
-    <span>File reading progress:</span>
-    <span id='loadedCounter'>-</span>
-    <span>/</span>
-    <span id='total'>-</span>
+    <label for='fileInput'>Входной файл:</label>
+    <div id='fileInputWithProgressBarContainer' style='width: max-content;'>
+      <input id='fileInput' type='file' style='cursor: pointer;'>
+    </div>
   </div>
 
   <script type='text/javascript'>
+    const formGrid = document.getElementById('formGrid');
     const fileInput = document.getElementById('fileInput');
-    const loadedCounterElem = document.getElementById('loadedCounter');
-    const totalElem = document.getElementById('total');
+    let progressBar;
 
     const fileReader = new FileReader();
 
-    fileInput.onchange = ({target: {files}}) => fileReader.readAsText(files[0]);
+    fileReader.onloadstart = ({loaded, total}) => {
+      removeAllOwnAndAncestorsNextSiblings(fileInput);
 
-    fileReader.onprogress = event => {
-      loadedCounter.innerText = event.loaded;
-      totalElem.innerText = event.total;
+      progressBar = document.createElement('progress');
+      progressBar.value = loaded;
+      progressBar.max = total;
+      progressBar.style.marginLeft = '10px';
+
+      fileInput.after(progressBar);
     };
 
-    fileReader.onload = event => {
-      loadedCounter.innerText = event.loaded;
-      totalElem.innerText = event.total;
+    fileReader.onprogress = ({loaded}) => progressBar.value = loaded;
+
+    fileInput.onchange = e => fileReader.readAsText(e.target.files[0]);
+
+    fileReader.onload = ({loaded}) => {
+      progressBar.value = loaded;
 
       const linesInFile = fileReader.result.split(/\r\n|\n/); // Each line contains one account
       if(linesInFile[linesInFile.length - 1] === '') linesInFile.splice(linesInFile.length - 1);
@@ -123,6 +160,13 @@
         return acc;
       }, []);
 
+      const proxiesOrder = infoPiecesToOutputNames.findIndex(el => el === 'proxies');
+
+      if(proxiesOrder !== -1) {
+        const proxies = document.getElementById('proxiesTextarea').value.split('\n');
+        infoPiecesToOutput.splice(proxiesOrder - 1, 0, proxies);
+      }
+
       const customNamesOrder = infoPiecesToOutputNames.findIndex(el => el === 'customNames');
 
       if(customNamesOrder !== -1) {
@@ -159,7 +203,7 @@
 
     const renderDownloadFileButton = (objectUrlToDownload) => {
       const downloadButton = document.createElement('button');
-      downloadButton.innerText = 'Download the output file';
+      downloadButton.innerText = 'Скачать выходной файл';
       downloadButton.style.cursor = 'pointer';
 
       const a = document.createElement('a');
@@ -174,9 +218,31 @@
 
     const renderCopyToClipboardButton = (stringToCopy) => {
       const copyToClipboardButton = document.createElement('button');
-      copyToClipboardButton.innerText = 'Copy the result to clipboard';
+      copyToClipboardButton.innerText = 'Скопировать результат в буфер обмена';
       copyToClipboardButton.style.cursor = 'pointer';
-      copyToClipboardButton.onclick = () => navigator.clipboard.writeText(stringToCopy);
+      copyToClipboardButton.onclick = () => {
+        try {
+          navigator.clipboard.writeText(stringToCopy);
+
+          const copySuccessTextElement = document.createElement('span');
+          copySuccessTextElement.style.marginLeft = '10px';
+          copySuccessTextElement.innerText = 'Скопировано';
+          copySuccessTextElement.style.color = 'lightgreen';
+
+          document.getElementById('copyFailureText')?.remove();
+          copyToClipboardButton.after(copySuccessTextElement);
+
+          setTimeout(() => copySuccessTextElement.remove(), 1500);
+        } catch(error) {
+          const copyFailureTextElement = document.createElement('span');
+          copyFailureTextElement.id = 'copyFailureText';
+          copyFailureTextElement.style.marginLeft = '10px';
+          copyFailureTextElement.innerText = 'Ошибка при копировании: ' + error;
+          copyFailureTextElement.style.color = 'red';
+
+          copyToClipboardButton.after(copyFailureTextElement);
+        }
+      };
 
       document.body.lastElementChild.before(copyToClipboardButton);
     };
@@ -192,7 +258,7 @@
         table.style.borderCollapse = 'collapse';
 
         const tableCaption = document.createElement('caption');
-        tableCaption.innerText = 'Result preview';
+        tableCaption.innerText = 'Предосмотр результата';
         tableCaption.style.fontSize = '22px';
         tableCaption.style.fontWeight = 'bold';
         table.append(tableCaption);
@@ -230,11 +296,28 @@
           .lastElementChild
           .previousElementSibling
           .after(table);
-      } catch (error) {
+      } catch(error) {
         const errorDiv = document.createElement('div');
-        errorDiv.innerText = 'An error has occured: ' + error;
+        errorDiv.innerText = 'Возникла ошибка: ' + error;
         errorDiv.style.border = '1px solid red';
         document.body.lastElementChild.before(errorDiv);
+      }
+    };
+
+    const removeAllOwnAndAncestorsNextSiblings = (element) => {
+      let currentParent = element.parentElement;
+
+      // Remove all own next siblings
+      while(element.nextElementSibling && element.nextElementSibling.tagName !== 'SCRIPT') {
+        element.nextElementSibling.remove();
+      }
+
+      // Remove all next siblings of every ancestor (stop on reaching <body>)
+      while(currentParent.tagName !== 'BODY') {
+        while(currentParent.nextElementSibling && currentParent.nextElementSibling.tagName !== 'SCRIPT') {
+          currentParent.nextElementSibling.remove();
+        }
+        currentParent = currentParent.parentElement;
       }
     };
   </script>
